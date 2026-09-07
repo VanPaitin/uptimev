@@ -1,0 +1,32 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Check shell syntax
+        run: bash -n uptime.sh test/uptimev_test.sh
+
+      - name: Run deterministic checks
+        run: bash test/uptimev_test.sh
+
+      - name: Read the real system uptime
+        run: ./uptime.sh
