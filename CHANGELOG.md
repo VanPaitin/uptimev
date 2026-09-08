@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 — 2026-09-08
 
 - Reject invalid and extra arguments with exit code 2.
 - Validate timestamps before arithmetic, including overflow and leading zeros.

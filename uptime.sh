@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly UPTIMEV_VERSION="0.1.0"
+readonly UPTIMEV_VERSION="0.1.1"
 
 usage() {
   cat <<'EOF'
