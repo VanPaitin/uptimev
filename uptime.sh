@@ -8,7 +8,7 @@ usage() {
   cat <<'EOF'
 Usage: uptimev [--help | --version]
 
-Show how long this machine has been running in a friendly format.
+Show current time, uptime, boot time, and load averages.
 
 Options:
   -h, --help       Show this help message
@@ -47,6 +47,45 @@ boot_epoch() {
   esac
 }
 
+load_averages() {
+  local values one five fifteen extra value
+  if [[ "${UPTIMEV_LOAD_AVERAGES+x}" ]]; then
+    values=$UPTIMEV_LOAD_AVERAGES
+  else
+    case "$1" in
+      Darwin)
+        values=$(LC_ALL=C /usr/sbin/sysctl -n vm.loadavg 2>/dev/null) || fail "could not read load averages"
+        [[ "$values" == \{*\} ]] || fail "could not understand load averages"
+        values=${values#\{}
+        values=${values%\}}
+        ;;
+      Linux)
+        values=$(cat /proc/loadavg 2>/dev/null) || fail "could not read /proc/loadavg"
+        read -r one five fifteen extra <<< "$values"
+        values="$one $five $fifteen"
+        ;;
+    esac
+  fi
+  read -r one five fifteen extra <<< "$values"
+  [[ -z "$extra" && "$values" != *$'\n'* ]] || fail "could not understand load averages"
+  for value in "$one" "$five" "$fifteen"; do
+    [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "could not understand load averages"
+  done
+  printf '%s, %s, %s\n' "$one" "$five" "$fifteen"
+}
+
+format_time() {
+  local formatted date_args
+  case "$1" in
+    Darwin) date_args=(/bin/date -r "$2") ;;
+    Linux) date_args=(date -d "@$2") ;;
+  esac
+  formatted=$(LC_ALL=C "${date_args[@]}" "+$3" 2>/dev/null) || fail "could not format $4"
+  [[ -n "$formatted" ]] || fail "could not format $4"
+  formatted=${formatted//  / }
+  printf '%s\n' "${formatted# }"
+}
+
 format_duration() {
   local total_seconds="$1"
   local parts=()
@@ -71,8 +110,7 @@ format_duration() {
 }
 
 main() {
-  local system_name now started_at duration timestamp
-  local date_args
+  local system_name now started_at duration timestamp current_time loads
 
   (($# <= 1)) || fail "expected at most one option; see --help" 2
   case "${1:-}" in
@@ -94,16 +132,12 @@ main() {
   started_at=$(decimal "$started_at" "system boot time") || return 1
   ((started_at <= now)) || fail "the system boot time is in the future"
 
-  case "$system_name" in
-    Darwin) date_args=(/bin/date -r "$started_at") ;;
-    Linux) date_args=(date -d "@$started_at") ;;
-  esac
-  timestamp=$(LC_ALL=C "${date_args[@]}" '+%A, %B %e, %Y at %l:%M %p' 2>/dev/null) ||
-    fail "could not format the system boot time"
-  [[ -n "$timestamp" ]] || fail "could not format the system boot time"
-  timestamp=${timestamp//  / }
+  timestamp=$(format_time "$system_name" "$started_at" '%A, %B %e, %Y at %l:%M %p' 'the system boot time') || return 1
+  current_time=$(format_time "$system_name" "$now" '%l:%M:%S %p %Z' 'the current time') || return 1
   duration=$(format_duration "$((now - started_at))") || return 1
-  printf 'Up for %s.\nRunning since %s.\n' "$duration" "$timestamp"
+  loads=$(load_averages "$system_name") || return 1
+  printf 'Current time: %s.\nUp for %s.\nRunning since %s.\nLoad averages (1, 5, 15 min): %s.\n' \
+    "$current_time" "$duration" "$timestamp" "$loads"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

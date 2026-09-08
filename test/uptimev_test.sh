@@ -11,6 +11,7 @@ TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
 unset UPTIMEV_BOOT_EPOCH UPTIMEV_NOW_EPOCH
 export TZ=UTC LC_ALL=C
+export UPTIMEV_LOAD_AVERAGES='0.42 0.35 0.28'
 checks=0
 
 assert_result() {
@@ -27,12 +28,12 @@ assert_result() {
   checks=$((checks + 1))
 }
 
-expected=$'Up for 2 days, 4 hours, and 17 minutes.\nRunning since Friday, September 4, 2026 at 11:43 PM.'
+expected=$'Current time: 4:00:00 AM UTC.\nUp for 2 days, 4 hours, and 17 minutes.\nRunning since Friday, September 4, 2026 at 11:43 PM.\nLoad averages (1, 5, 15 min): 0.42, 0.35, 0.28.'
 for option in -v --version; do
   assert_result 0 "uptimev $UPTIMEV_VERSION" '' "$COMMAND" "$option"
 done
 for option in -h --help; do
-  assert_result 0 "$(usage)" '' env UPTIMEV_NOW_EPOCH=invalid "$COMMAND" "$option"
+  assert_result 0 "$(usage)" '' env UPTIMEV_NOW_EPOCH=invalid UPTIMEV_LOAD_AVERAGES=invalid "$COMMAND" "$option"
 done
 for option in --unknown file.txt -- -hv; do
   assert_result 2 '' "uptimev: unknown option: $option; see --help" "$COMMAND" "$option"
@@ -43,14 +44,16 @@ assert_result 2 '' 'uptimev: expected at most one option; see --help' "$COMMAND"
 
 assert_result 0 "$expected" '' env UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788565380 "$COMMAND"
 assert_result 0 "$expected" '' env UPTIMEV_NOW_EPOCH=01788753600 UPTIMEV_BOOT_EPOCH=01788565380 "$COMMAND"
-assert_result 0 $'Up for 0 minutes.\nRunning since Thursday, January 1, 1970 at 12:00 AM.' '' \
+assert_result 0 $'Current time: 12:00:00 AM UTC.\nUp for 0 minutes.\nRunning since Thursday, January 1, 1970 at 12:00 AM.\nLoad averages (1, 5, 15 min): 0.42, 0.35, 0.28.' '' \
   env UPTIMEV_NOW_EPOCH=0 UPTIMEV_BOOT_EPOCH=0 "$COMMAND"
+assert_result 0 "${expected/4:00:00/4:00:07}" '' \
+  env UPTIMEV_NOW_EPOCH=1788753607 UPTIMEV_BOOT_EPOCH=1788565380 "$COMMAND"
+assert_result 0 $'Current time: 12:00:00 PM UTC.\nUp for 12 hours.\nRunning since Thursday, January 1, 1970 at 12:00 AM.\nLoad averages (1, 5, 15 min): 0.42, 0.35, 0.28.' '' \
+  env UPTIMEV_NOW_EPOCH=43200 UPTIMEV_BOOT_EPOCH=0 "$COMMAND"
 
 # Every duration shape, including sub-minute uptime, carries, and singular/plural units.
 while IFS='|' read -r seconds duration; do
-  assert_result 0 "Up for $duration.
-Running since Friday, September 4, 2026 at 11:43 PM." '' \
-    env UPTIMEV_NOW_EPOCH="$((1788565380 + seconds))" UPTIMEV_BOOT_EPOCH=1788565380 "$COMMAND"
+  assert_result 0 "$duration" '' format_duration "$seconds"
 done <<'EOF'
 0|0 minutes
 59|0 minutes
@@ -81,18 +84,41 @@ assert_result 1 '' 'uptimev: the system boot time is in the future' \
 # Exercise both kernel readers and command failures without changing the host clock or /proc.
 mock_system() (
   local fixture_os=$1 boot_data=$2 clock_data=${3:-1788753600} failure=${4:-}
-  unset UPTIMEV_BOOT_EPOCH UPTIMEV_NOW_EPOCH
+  local fixture_load=${5-'0.42 0.35 0.28'}
+  unset UPTIMEV_BOOT_EPOCH UPTIMEV_NOW_EPOCH UPTIMEV_LOAD_AVERAGES
   uname() {
     [[ "$failure" != uname ]] || return 1
     printf '%s\n' "$fixture_os"
   }
   function /usr/sbin/sysctl() {
-    [[ "$*" == '-n kern.boottime' && "$failure" != boot ]] || return 1
-    printf '%s\n' "$boot_data"
+    case "$*" in
+      '-n kern.boottime')
+        [[ "$failure" != boot ]] || return 1
+        printf '%s\n' "$boot_data"
+        ;;
+      '-n vm.loadavg')
+        [[ "$failure" != load ]] || return 1
+        if [[ "$failure" == load_format ]]; then
+          printf '%s\n' "$fixture_load"
+        else
+          printf '{ %s }\n' "$fixture_load"
+        fi
+        ;;
+      *) return 1 ;;
+    esac
   }
   cat() {
-    [[ "$1" == /proc/uptime && "$failure" != boot ]] || return 1
-    printf '%s\n' "$boot_data"
+    case "$1" in
+      /proc/uptime)
+        [[ "$failure" != boot ]] || return 1
+        printf '%s\n' "$boot_data"
+        ;;
+      /proc/loadavg)
+        [[ "$failure" != load ]] || return 1
+        printf '%s 1/99 1234\n' "$fixture_load"
+        ;;
+      *) return 1 ;;
+    esac
   }
   date() {
     if [[ "$1" == +%s ]]; then
@@ -101,9 +127,21 @@ mock_system() (
     else
       [[ "$failure" != format ]] || return 1
       [[ "$failure" != empty_format ]] || return 0
-      [[ "$LC_ALL" == C && "$2" == *1788565380 ]] || return 1
+      [[ "$LC_ALL" == C ]] || return 1
       case "$fixture_os:$1" in
-        Darwin:-r|Linux:-d) printf 'Friday, September  4, 2026 at 11:43 PM\n' ;;
+        Darwin:-r|Linux:-d) ;;
+        *) return 1 ;;
+      esac
+      case "$3" in
+        '+%A, %B %e, %Y at %l:%M %p')
+          [[ "$2" == *1788565380 ]] || return 1
+          printf 'Friday, September  4, 2026 at 11:43 PM\n'
+          ;;
+        '+%l:%M:%S %p %Z')
+          [[ "$2" == *1788753600 && "$failure" != current_format ]] || return 1
+          [[ "$failure" != empty_current_format ]] || return 0
+          printf ' 4:00:00 AM UTC\n'
+          ;;
         *) return 1 ;;
       esac
     fi
@@ -134,6 +172,30 @@ assert_result 1 '' 'uptimev: current time must be a non-negative integer of at m
 for failure in format empty_format; do
   assert_result 1 '' 'uptimev: could not format the system boot time' mock_system Linux '188220.0 0.0' 1788753600 "$failure"
 done
+for failure in current_format empty_current_format; do
+  assert_result 1 '' 'uptimev: could not format the current time' mock_system Linux '188220.0 0.0' 1788753600 "$failure"
+done
+
+assert_result 1 '' 'uptimev: could not read load averages' \
+  mock_system Darwin '{ sec = 1788565380, usec = 0 }' 1788753600 load
+assert_result 1 '' 'uptimev: could not read /proc/loadavg' \
+  mock_system Linux '188220.0 0.0' 1788753600 load
+assert_result 1 '' 'uptimev: could not understand load averages' \
+  mock_system Darwin '{ sec = 1788565380, usec = 0 }' 1788753600 load_format
+for value in '' '0.42 0.35' '-1 0.35 0.28' 'NaN 0.35 0.28'; do
+  assert_result 1 '' 'uptimev: could not understand load averages' \
+    mock_system Darwin '{ sec = 1788565380, usec = 0 }' 1788753600 '' "$value"
+  assert_result 1 '' 'uptimev: could not understand load averages' \
+    mock_system Linux '188220.0 0.0' 1788753600 '' "$value"
+done
+for value in '' '0.42 0.35' '0.42 0.35 0.28 1.00' '-1 0.35 0.28' '0,42 0,35 0,28' 'NaN 0.35 0.28' $'0.42 0.35 0.28\nextra'; do
+  assert_result 1 '' 'uptimev: could not understand load averages' \
+    env UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788565380 UPTIMEV_LOAD_AVERAGES="$value" "$COMMAND"
+done
+assert_result 0 "${expected/0.42, 0.35, 0.28/0, 1, 2}" '' \
+  env UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788565380 UPTIMEV_LOAD_AVERAGES='0 1 2' "$COMMAND"
+assert_result 0 "${expected/0.42, 0.35, 0.28/0.00, 0.00, 0.00}" '' \
+  env UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788565380 UPTIMEV_LOAD_AVERAGES='0.00 0.00 0.00' "$COMMAND"
 
 # macOS must use BSD date even when GNU date shadows it on PATH.
 mkdir "$TEST_DIR/bin"
@@ -155,8 +217,8 @@ esac
 assert_result 1 '' 'uptimev: could not read the current time' \
   env PATH="$TEST_DIR/bin:$PATH" UPTIMEV_BOOT_EPOCH=1788565380 "$COMMAND"
 
-assert_result 0 $'Up for 1 minute.\nRunning since Monday, September 7, 2026 at 4:59 AM.' '' \
-  env TZ=UTC-1 UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788753540 "$COMMAND"
+assert_result 0 $'Current time: 5:00:00 AM WAT.\nUp for 1 minute.\nRunning since Monday, September 7, 2026 at 4:59 AM.\nLoad averages (1, 5, 15 min): 0.42, 0.35, 0.28.' '' \
+  env TZ=WAT-1 UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788753540 "$COMMAND"
 if locale -a | command grep -i '^fr_FR[.]utf' >/dev/null; then
   assert_result 0 "$expected" '' env LC_ALL=fr_FR.UTF-8 UPTIMEV_NOW_EPOCH=1788753600 UPTIMEV_BOOT_EPOCH=1788565380 "$COMMAND"
 fi

@@ -1,14 +1,16 @@
 # uptimev
 
-`uptimev` prints uptime and boot time in plain English on macOS and Linux.
+Current time, uptime, boot time, and load averages for macOS and Linux.
 
 ```text
+Current time: 4:00:00 AM UTC.
 Up for 2 days, 4 hours, and 17 minutes.
 Running since Friday, September 4, 2026 at 11:43 PM.
+Load averages (1, 5, 15 min): 0.42, 0.35, 0.28.
 ```
 
-Requires Bash 3.2+ and standard system tools. Linux also needs GNU `date`
-and a readable `/proc/uptime`; BusyBox-only systems are not supported.
+Requires Bash 3.2+ and standard system tools. Linux also needs GNU `date` and
+readable `/proc/uptime` and `/proc/loadavg`; BusyBox-only systems are not supported.
 
 ## Install with Homebrew
 
@@ -57,9 +59,10 @@ changes; Homebrew installs the release pinned in the tap.
 
 ## How it works
 
-Reads `kern.boottime` on macOS and `/proc/uptime` on Linux. Sleep counts toward
-uptime. Clock changes can affect the reported boot time. Containers use the
-uptime exposed by their `/proc` mount.
+Reads boot time and load averages through `sysctl` on macOS and `/proc` on
+Linux. Load averages cover 1, 5, and 15 minutes. Sleep counts toward uptime;
+clock changes can affect the reported boot time. Containers use the system
+metrics exposed by their `/proc` mount.
 
 ## Development
 
@@ -72,8 +75,9 @@ Install ShellCheck to run lint checks. CI tests macOS and Linux, including live
 uptime, failures, and standalone installations.
 
 `UPTIMEV_BOOT_EPOCH` and `UPTIMEV_NOW_EPOCH` override Unix timestamps for tests.
-Use 1–18 decimal digits; leading zeros are accepted. Leave both unset for normal
-use. To test an installed copy, run
+Use 1–18 decimal digits; leading zeros are accepted. `UPTIMEV_LOAD_AVERAGES`
+accepts three space-separated non-negative decimal values. Leave these overrides unset
+for normal use. To test an installed copy, run
 `UPTIMEV_TEST_COMMAND=/absolute/path/to/uptimev bash test/uptimev_test.sh`.
 
 [Release guide](RELEASING.md) · [MIT license](LICENSE)

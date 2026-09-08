@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Show the current local time with seconds and timezone.
+- Show the 1-, 5-, and 15-minute load averages on macOS and Linux.
+
 ## 0.1.1 — 2026-09-08
 
 - Reject invalid and extra arguments with exit code 2.

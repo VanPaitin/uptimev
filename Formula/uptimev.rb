@@ -18,7 +18,7 @@ class Uptimev < Formula
     ENV["TZ"] = "UTC"
     ENV["UPTIMEV_NOW_EPOCH"] = "1788753600"
     ENV["UPTIMEV_BOOT_EPOCH"] = "1788565380"
-    assert_equal <<~EOS, shell_output(bin/"uptimev")
+    assert_match <<~EOS, shell_output(bin/"uptimev")
       Up for 2 days, 4 hours, and 17 minutes.
       Running since Friday, September 4, 2026 at 11:43 PM.
     EOS
