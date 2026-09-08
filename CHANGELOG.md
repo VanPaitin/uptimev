@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-09-08
 
 - Show the current local time with seconds and timezone.
 - Show the 1-, 5-, and 15-minute load averages on macOS and Linux.
