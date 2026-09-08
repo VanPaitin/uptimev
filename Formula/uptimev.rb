@@ -1,8 +1,8 @@
 class Uptimev < Formula
   desc "Show system uptime and boot time in plain English"
   homepage "https://github.com/VanPaitin/uptimev"
-  url "https://github.com/VanPaitin/uptimev/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "fb94ff132df5daccab87061240ffd2b96439fc11697b4d1db7f0d81c311b18bf"
+  url "https://github.com/VanPaitin/uptimev/archive/refs/tags/v0.1.1.tar.gz"
+  sha256 "768fa54dde543b38ac3ea610b2e4f00a62af3dcabbaaf8816df8baaaec4c3f10"
   license "MIT"
 
   def install
