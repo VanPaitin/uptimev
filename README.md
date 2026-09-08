@@ -1,8 +1,8 @@
 # uptimev
 
-A human-readable alternative to unix uptime.
+A human-readable alternative to the Unix `uptime` command for macOS and Linux.
 
-![uptimev showing current time, uptime, boot time, and load averages](render1788892594856.gif)
+![uptimev showing current time, uptime, boot time, and load averages](assets/uptimev-demo.gif)
 
 Requires Bash 3.2+ and standard system tools. Linux also needs GNU `date` and
 readable `/proc/uptime` and `/proc/loadavg`; BusyBox-only systems are not supported.
