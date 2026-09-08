@@ -11,6 +11,7 @@ jobs:
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -23,10 +24,23 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Check shell syntax
-        run: bash -n uptime.sh test/uptimev_test.sh
+        run: |
+          bash -n uptime.sh
+          bash -n test/uptimev_test.sh
 
       - name: Run deterministic checks
         run: bash test/uptimev_test.sh
 
       - name: Read the real system uptime
         run: ./uptime.sh
+
+      - name: Lint shell scripts
+        if: runner.os == 'Linux'
+        run: shellcheck uptime.sh test/uptimev_test.sh
+
+      - name: Check Homebrew formula syntax
+        run: ruby -c Formula/uptimev.rb
+
+      - name: Check release tag matches the CLI version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "$(./uptime.sh --version)" = "uptimev ${GITHUB_REF_NAME#v}"
