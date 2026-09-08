@@ -1,13 +1,8 @@
 # uptimev
 
-Current time, uptime, boot time, and load averages for macOS and Linux.
+A human-readable alternative to unix uptime.
 
-```text
-Current time: 4:00:00 AM UTC.
-Up for 2 days, 4 hours, and 17 minutes.
-Running since Friday, September 4, 2026 at 11:43 PM.
-Load averages (1, 5, 15 min): 0.42, 0.35, 0.28.
-```
+![uptimev showing current time, uptime, boot time, and load averages](render1788892594856.gif)
 
 Requires Bash 3.2+ and standard system tools. Linux also needs GNU `date` and
 readable `/proc/uptime` and `/proc/loadavg`; BusyBox-only systems are not supported.
