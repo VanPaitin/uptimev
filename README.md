@@ -80,4 +80,8 @@ accepts three space-separated non-negative decimal values. Leave these overrides
 for normal use. To test an installed copy, run
 `UPTIMEV_TEST_COMMAND=/absolute/path/to/uptimev bash test/uptimev_test.sh`.
 
-[Release guide](RELEASING.md) · [MIT license](LICENSE)
+[Release guide](RELEASING.md)
+
+## License
+
+Licensed under the [MIT License](LICENSE).
