@@ -108,7 +108,8 @@ mock_system() (
       esac
     fi
   }
-  # shellcheck disable=SC2329
+  # Invoked through the platform-specific command array.
+  # shellcheck disable=SC2317,SC2329
   function /bin/date() { date "$@"; }
   main
 )
